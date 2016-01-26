@@ -9,16 +9,47 @@
 #import "MAXAutoDictionary.h"
 #import <objc/runtime.h>
 
-@interface MAXAutoDictionary()
-@property (nonatomic, strong) NSMutableDictionary *dataDict;
+NSMutableDictionary *dataDictClass = nil;
+id proxyObject = nil;
+
+
+@interface ProxyOO : NSObject
+- (void)sayHello;
 @end
 
+@implementation ProxyOO
+- (void)sayHello{NSLog(@"Hellllll...");};
+- (void)setNumber:(NSNumber *)number{
+    NSLog(@"set number %@",number);
+}
+- (void)setView:(NSNumber *)number{
+    NSLog(@"set number %@",number);
+}
+@end
+
+#pragma mark -
+#pragma mark MAXAutoDictionary()
+//================================================================================================
+@interface MAXAutoDictionary()
+
+@property (nonatomic, strong) NSMutableDictionary *dataDict;
+
+@end
+
+#pragma mark -
+#pragma mark MAXAutoDictionary
+//================================================================================================
 @implementation MAXAutoDictionary
 @dynamic date;
+@dynamic string;
+@dynamic number;
+@dynamic view;
 
 - (instancetype)init {
     if (self = [super init]) {
         _dataDict = [[NSMutableDictionary alloc] init];
+        dataDictClass = @{}.mutableCopy;
+        proxyObject = [ProxyOO new];
     }
     return self;
 }
@@ -36,6 +67,7 @@ id autoDictionaryGetter(id self, SEL sel) {
     return dataDict[key];
 }
 
+//for object
 void autoDictionarySetter(id self, SEL sel, id value) {
     MAXAutoDictionary *dict = (MAXAutoDictionary *)self;
     NSMutableDictionary *dataDict = dict.dataDict;
@@ -53,14 +85,96 @@ void autoDictionarySetter(id self, SEL sel, id value) {
     }
 }
 
+//for class
+void autoDictionarySetter2(id self, SEL sel, id value) {
+//    MAXAutoDictionary *dict = (MAXAutoDictionary *)self;
+    NSMutableDictionary *dataDict = dataDictClass;
+    NSString *key = NSStringFromSelector(sel);//setTestObj:
+    
+    NSMutableString *tempKey = [key mutableCopy];
+    [tempKey deleteCharactersInRange:NSMakeRange(0, 3)];//setTestObj:->TestObj:
+    [tempKey deleteCharactersInRange:NSMakeRange(tempKey.length-1, 1)];//TestObj:->TestObj
+    NSString *firstCharacter = [[tempKey substringToIndex:1] lowercaseString];// t
+    [tempKey replaceCharactersInRange:NSMakeRange(0, 1) withString:firstCharacter];//TestObj -> testObj
+    if (value) {
+        [dataDict setObject:value forKey:tempKey];
+    } else {
+        [dataDict removeObjectForKey:tempKey];
+    }
+}
+
++ (BOOL)resolveClassMethod:(SEL)sel{
+    
+    NSString *selectorString = NSStringFromSelector(sel);
+    if ([selectorString hasPrefix:@"setClassString"]) {
+        
+        Class myClass = object_getClass(self);
+        class_addMethod(myClass, sel, (IMP)autoDictionarySetter2, "v@:@");
+    }
+         
+    return NO;
+}
+
+/* 不管返回YES或者是NO,它都会再次执行一次（forward）,即都将会给一次添加方法的机会。*/
 + (BOOL)resolveInstanceMethod:(SEL)sel {
     NSString *selectorString = NSStringFromSelector(sel);
-    if ([selectorString hasPrefix:@"set"]) {
+    if ([selectorString hasPrefix:@"setDate"]) {
         class_addMethod(self, sel, (IMP)autoDictionarySetter, "v@:@");
     } else {
-        class_addMethod(self, sel, (IMP)autoDictionaryGetter, "@@:");
+        return NO;
     }
+    
     return YES;
 }
 
+- (id)forwardingTargetForSelector:(SEL)aSelector{
+    
+    NSString *selectorString = NSStringFromSelector(aSelector);
+    if ([selectorString hasPrefix:@"setNumber"]) {
+        return proxyObject;//self;
+    }
+    
+    if ([selectorString hasPrefix:@"setView"]) {
+        return nil;
+    }
+    
+    return nil;
+}
+
+- (void)forwardInvocation:(NSInvocation *)anInvocation{
+    
+    id target = proxyObject;
+    [anInvocation invokeWithTarget:target];
+}
+
+/*这里的签名也没有关系，只需要返回一个就行。即存在就行*/
+- (NSMethodSignature *)methodSignatureForSelector:(SEL)aSelector{
+    
+    NSString *selectorString = NSStringFromSelector(aSelector);
+    if ([selectorString hasPrefix:@"setNumber"]) {
+//        NSMethodSignature *sig = [NSMethodSignature methodSignatureForSelector:@selector(sayHello)];//==nil
+        NSMethodSignature *sig = [NSMethodSignature instanceMethodSignatureForSelector:@selector(sayHello)];
+        return sig;
+    }
+    
+    if ([selectorString hasPrefix:@"setView"]) {
+//        NSMethodSignature *sig = [NSMethodSignature instanceMethodSignatureForSelector:@selector(sayHello)];//==nil
+//        NSMethodSignature *sig = [NSMethodSignature new];//==nil ,why?
+        NSMethodSignature *sig = [proxyObject methodSignatureForSelector:@selector(sayHello)];
+        return sig;
+    }
+    return nil;
+}
+
+- (void)sayHello{
+    
+    NSLog(@"hello");
+}
+
++ (void)sayHello2{
+    
+    NSLog(@"");
+}
+
 @end
+
