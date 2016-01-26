@@ -13,6 +13,9 @@
 
 @end
 
+#pragma mark -
+#pragma mark ViewController
+//================================================================================================
 @implementation ViewController
 
 - (void)viewDidLoad {
@@ -22,9 +25,13 @@
     
     MAXAutoDictionary *dict = [[MAXAutoDictionary alloc] init];
     dict.date = [NSDate date];
+    dict.date = [NSDate date];//can work
     
-    NSLog(@"%@", dict.date);
+//    dict.string = @"aa";//crash
+//    [MAXAutoDictionary setClassString:@"bb"];//why crash?
     
+    dict.number = @1;
+    dict.view = [UIView new];
 }
 
 - (void)didReceiveMemoryWarning {
